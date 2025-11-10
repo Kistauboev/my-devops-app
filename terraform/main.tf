@@ -11,12 +11,16 @@ provider "digitalocean" {
   token = var.do_token
 }
 
+data "digitalocean_ssh_key" "devops_key" {
+  name = "devops-project"
+}
+
 resource "digitalocean_droplet" "devops_server" {
   image  = "ubuntu-22-04-x64"
   name   = "devops-app-server"
-  region = "nyc3"
-  size   = "s-1vcpu-1gb"
-  ssh_keys = ["devops-project"]  # ← This is the fixed line
+  region = "nyc1"
+  size   = "s-1vcpu-512mb-10gb"
+  ssh_keys = [data.digitalocean_ssh_key.devops_key.id]
 }
 
 output "server_ip" {
