@@ -2,7 +2,7 @@ terraform {
   required_providers {
     digitalocean = {
       source = "digitalocean/digitalocean"
-      version = "2.26.0"
+      version = "~> 2.0"
     }
   }
 }
@@ -14,9 +14,9 @@ provider "digitalocean" {
 resource "digitalocean_droplet" "devops_server" {
   image  = "ubuntu-22-04-x64"
   name   = "devops-app-server"
-  region = "nyc1"
+  region = "nyc3"
   size   = "s-1vcpu-1gb"
-  ssh_keys = [var.ssh_key_id]
+  ssh_keys = ["devops-project"]  # ← This is the fixed line
 }
 
 output "server_ip" {
