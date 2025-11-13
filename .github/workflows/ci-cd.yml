@@ -55,3 +55,27 @@ jobs:
         env:
           TF_VAR_do_token: ${{ secrets.DO_TOKEN }}
           TF_VAR_ssh_key_id: ${{ secrets.SSH_KEY_ID }}
+
+  deploy-application:
+    runs-on: ubuntu-latest
+    needs: [build-and-test, deploy-infrastructure]
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Deploy Application
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /root/app
+            git pull origin main
+            docker stop my-app || true
+            docker rm my-app || true
+            docker build -t my-devops-app .
+            docker run -d -p 80:5000 --name my-app my-devops-app
+            echo "🚀 Application deployed successfully!"
