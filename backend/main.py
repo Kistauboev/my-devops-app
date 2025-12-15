@@ -212,6 +212,29 @@ def get_metrics(namespace: Optional[str] = None) -> Dict[str, Any]:
             "timestamp": datetime.now().isoformat(),
         }
         
+        # If no pods found and kubectl failed, provide mock data for testing/demo
+        if not success or not output:
+            # Generate mock pod data for demonstration when Kubernetes is not available
+            import random
+            mock_pods = [
+                {
+                    "name": "devplatform-backend",
+                    "cpu": f"{random.randint(50, 200)}m",
+                    "cpu_value": random.uniform(0.05, 0.2),
+                    "memory": f"{random.randint(128, 512)}Mi",
+                    "memory_value": random.uniform(128, 512),
+                },
+                {
+                    "name": "devplatform-frontend",
+                    "cpu": f"{random.randint(20, 100)}m",
+                    "cpu_value": random.uniform(0.02, 0.1),
+                    "memory": f"{random.randint(64, 256)}Mi",
+                    "memory_value": random.uniform(64, 256),
+                },
+            ]
+            metrics["pods"] = mock_pods
+            metrics["note"] = "Mock data (Kubernetes not available)"
+        
         if success and output:
             # Parse kubectl top output: NAME CPU(cores) MEMORY(bytes)
             for line in output.strip().split("\n"):
@@ -247,6 +270,28 @@ def get_metrics(namespace: Optional[str] = None) -> Dict[str, Any]:
                             "memory": memory_str,
                             "memory_value": memory_value,
                         })
+        
+        # If no pods found (no Kubernetes or no pods running), provide mock data for demo
+        if len(metrics["pods"]) == 0:
+            import random
+            mock_pods = [
+                {
+                    "name": "devplatform-backend",
+                    "cpu": f"{random.randint(50, 200)}m",
+                    "cpu_value": random.uniform(0.05, 0.2),
+                    "memory": f"{random.randint(128, 512)}Mi",
+                    "memory_value": random.uniform(128, 512),
+                },
+                {
+                    "name": "devplatform-frontend",
+                    "cpu": f"{random.randint(20, 100)}m",
+                    "cpu_value": random.uniform(0.02, 0.1),
+                    "memory": f"{random.randint(64, 256)}Mi",
+                    "memory_value": random.uniform(64, 256),
+                },
+            ]
+            metrics["pods"] = mock_pods
+            metrics["note"] = "Mock data (Kubernetes not available or no pods running)"
         
         return metrics
     except Exception as e:
