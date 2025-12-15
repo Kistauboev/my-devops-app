@@ -47,3 +47,12 @@ desktop.ini
 *.tmp
 *.temp
 
+# Documentation files (keep locally, don't track in git)
+DEPLOYMENT_GUIDE.md
+ENV_TEMPLATE.md
+IMPLEMENTATION_SUMMARY.md
+PROJECT_COMPLETE.md
+QUICK_START.md
+STEP_BY_STEP_START.md
+TESTING_GUIDE.md
+
