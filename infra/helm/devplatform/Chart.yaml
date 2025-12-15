@@ -1,0 +1,7 @@
+apiVersion: v2
+name: devplatform
+description: Generic chart for preview/prod deployments managed by DevPlatform
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+

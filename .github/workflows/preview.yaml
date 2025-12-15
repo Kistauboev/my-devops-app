@@ -1,0 +1,69 @@
+name: devplatform-preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  PREVIEW_NS: pr-${{ github.event.pull_request.number }}
+  RELEASE_NAME: pr-${{ github.event.pull_request.number }}
+  HOST_SUFFIX: devplatform.local
+
+jobs:
+  deploy-preview:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Log in to registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:pr-${{ github.event.pull_request.number }}-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Set kube context
+        uses: azure/k8s-set-context@v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+
+      - name: Deploy preview via Helm
+        run: |
+          helm upgrade --install $RELEASE_NAME infra/helm/devplatform \
+            --namespace $PREVIEW_NS --create-namespace \
+            --set namespace=$PREVIEW_NS \
+            --set image.repository=${REGISTRY}/${IMAGE_NAME} \
+            --set image.tag=pr-${{ github.event.pull_request.number }}-${{ github.sha }} \
+            --set ingress.host=pr-${{ github.event.pull_request.number }}.${HOST_SUFFIX}
+
+  teardown-preview:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set kube context
+        uses: azure/k8s-set-context@v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+
+      - name: Delete preview namespace
+        run: |
+          kubectl delete namespace ${{ env.PREVIEW_NS }} --ignore-not-found=true
+
