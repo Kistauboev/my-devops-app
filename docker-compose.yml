@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: devplatform-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - GITHUB_APP_ID=${GITHUB_APP_ID:-}
+      - GITHUB_INSTALLATION_ID=${GITHUB_INSTALLATION_ID:-}
+      - GITHUB_PRIVATE_KEY=${GITHUB_PRIVATE_KEY:-}
+      - APPROVAL_TOKEN=${APPROVAL_TOKEN:-}
+      - KUBE_CONFIG=${KUBE_CONFIG:-}
+      - VAULT_ADDR=${VAULT_ADDR:-}
+      - VAULT_TOKEN=${VAULT_TOKEN:-}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - DEFAULT_REGISTRY_USERNAME=${DEFAULT_REGISTRY_USERNAME:-}
+      - DEFAULT_REGISTRY_PASSWORD=${DEFAULT_REGISTRY_PASSWORD:-}
+      - DEFAULT_KUBE_CONFIG=${DEFAULT_KUBE_CONFIG:-}
+    volumes:
+      - ./backend:/app
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: devplatform-frontend
+    ports:
+      - "80:80"
+    environment:
+      - VITE_API_BASE=${VITE_API_BASE:-http://localhost:8000}
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+networks:
+  default:
+    name: devplatform-network
+

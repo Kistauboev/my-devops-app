@@ -40,6 +40,8 @@ desktop.ini
 .env
 .env.local
 .env.*.local
+# But keep example files
+!.env.example
 
 # Temporary files
 *.tmp
