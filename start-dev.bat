@@ -42,8 +42,8 @@ if not exist ".venv\.installed" (
 )
 
 REM Start backend in new window
-echo Starting backend on http://localhost:8000
-start "DevPlatform Backend" cmd /k "uvicorn main:app --reload --port 8000"
+echo Starting backend on http://localhost:8000 (also accessible via network IP)
+start "DevPlatform Backend" cmd /k "uvicorn main:app --reload --host 0.0.0.0 --port 8000"
 cd ..
 
 REM Wait a bit for backend to start
@@ -72,4 +72,5 @@ echo 📍 Frontend: http://localhost:5173
 echo.
 echo Close the terminal windows to stop the services
 pause
+
 

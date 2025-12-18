@@ -48,8 +48,8 @@ if [ ! -f ".venv/.installed" ]; then
 fi
 
 # Start backend
-echo "Starting backend on http://localhost:8000"
-uvicorn main:app --reload --port 8000 &
+echo "Starting backend on http://localhost:8000 (also accessible via network IP)"
+uvicorn main:app --reload --host 0.0.0.0 --port 8000 &
 BACKEND_PID=$!
 cd ..
 

@@ -41,7 +41,21 @@ type MetricsData = {
   timestamp: string;
 };
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+// Auto-detect API base URL based on current hostname
+// If accessed via network IP, use that IP for API; otherwise use localhost
+const getApiBase = () => {
+  if (import.meta.env.VITE_API_BASE) {
+    return import.meta.env.VITE_API_BASE;
+  }
+  // If accessed via network IP, use the same hostname for API
+  const hostname = window.location.hostname;
+  if (hostname !== "localhost" && hostname !== "127.0.0.1") {
+    return `http://${hostname}:8000`;
+  }
+  return "http://localhost:8000";
+};
+
+const API_BASE = getApiBase();
 
 export default function App() {
   const [onboard, setOnboard] = useState<OnboardForm>({
@@ -50,6 +64,7 @@ export default function App() {
   });
   const [approve, setApprove] = useState<ApproveForm>({ runId: "", token: "" });
   const [onboardResult, setOnboardResult] = useState<string>("");
+  const [onboardLoading, setOnboardLoading] = useState<boolean>(false);
   const [approveResult, setApproveResult] = useState<string>("");
   const [health, setHealth] = useState<string>("");
   const [logs, setLogs] = useState<string>("");
@@ -66,12 +81,20 @@ export default function App() {
     try {
       const res = await axios.get(`${API_BASE}/health`);
       setHealth(JSON.stringify(res.data, null, 2));
-    } catch {
-      setHealth("unreachable");
+    } catch (err: any) {
+      const errorMsg = err?.response 
+        ? `Error ${err.response.status}: ${JSON.stringify(err.response.data)}`
+        : err?.request
+        ? `Cannot connect to ${API_BASE}. Is backend running?`
+        : `Error: ${err?.message || "Unknown error"}`;
+      setHealth(`unreachable - ${errorMsg}`);
+      console.error("Health check failed:", err);
     }
   };
 
   const submitOnboard = async () => {
+    setOnboardLoading(true);
+    setOnboardResult(""); // Clear previous result
     try {
       const res = await axios.post(`${API_BASE}/onboard`, {
         repo_url: onboard.repoUrl,
@@ -79,7 +102,11 @@ export default function App() {
       });
       setOnboardResult(JSON.stringify(res.data, null, 2));
     } catch (err: any) {
-      setOnboardResult(err?.response?.data?.detail || "Onboard failed");
+      console.error("Onboard error:", err);
+      const errorDetail = err?.response?.data?.detail || err?.response?.data?.message || err?.message || "Onboard failed";
+      setOnboardResult(`❌ Error: ${errorDetail}\n\nFull response: ${JSON.stringify(err?.response?.data || {}, null, 2)}`);
+    } finally {
+      setOnboardLoading(false);
     }
   };
 
@@ -166,6 +193,14 @@ export default function App() {
       });
     } catch (err: any) {
       console.error("Failed to fetch metrics:", err);
+      // Show error to user
+      if (err?.response) {
+        console.error("Backend responded with:", err.response.status, err.response.data);
+      } else if (err?.request) {
+        console.error("No response from backend. Is it running?");
+      } else {
+        console.error("Error setting up request:", err.message);
+      }
     } finally {
       setLoadingMetrics(false);
     }
@@ -188,19 +223,23 @@ export default function App() {
   }, []);
 
   // Prepare chart data
-  const cpuChartData = metricsHistory.map((m, idx) => ({
-    time: idx,
-    ...Object.fromEntries(
-      m.pods.map((pod) => [pod.name, pod.cpu_value])
-    ),
-  }));
+  const cpuChartData = metricsHistory
+    .filter((m) => m.pods && m.pods.length > 0)
+    .map((m, idx) => ({
+      time: idx,
+      ...Object.fromEntries(
+        m.pods.map((pod) => [pod.name, pod.cpu_value || 0])
+      ),
+    }));
 
-  const memoryChartData = metricsHistory.map((m, idx) => ({
-    time: idx,
-    ...Object.fromEntries(
-      m.pods.map((pod) => [pod.name, pod.memory_value])
-    ),
-  }));
+  const memoryChartData = metricsHistory
+    .filter((m) => m.pods && m.pods.length > 0)
+    .map((m, idx) => ({
+      time: idx,
+      ...Object.fromEntries(
+        m.pods.map((pod) => [pod.name, pod.memory_value || 0])
+      ),
+    }));
 
   const httpRateData = metricsHistory.map((m, idx) => ({
     time: idx,
@@ -241,9 +280,14 @@ export default function App() {
             placeholder="main"
           />
         </label>
-        <button style={styles.button} onClick={submitOnboard}>
-          Submit
+        <button 
+          style={styles.button} 
+          onClick={submitOnboard}
+          disabled={onboardLoading}
+        >
+          {onboardLoading ? "Submitting..." : "Submit"}
         </button>
+        {onboardLoading && <p style={{color: "#666", marginTop: "0.5rem"}}>Processing...</p>}
         {onboardResult && <pre style={styles.pre}>{onboardResult}</pre>}
       </section>
 
@@ -311,7 +355,8 @@ export default function App() {
         </div>
         {streamingLogs && (
           <div style={styles.streamingIndicator}>
-            <span style={styles.streamingDot}></span> Streaming logs in real-time...
+            <span style={styles.streamingDot}></span> Streaming logs in
+            real-time...
           </div>
         )}
         {logs && (
@@ -391,53 +436,81 @@ export default function App() {
               </div>
             )}
 
-            {cpuChartData.length > 0 && (
-              <div style={styles.chartContainer}>
-                <h3 style={styles.metricTitle}>CPU Usage Over Time</h3>
-                <ResponsiveContainer width="100%" height={200}>
-                  <LineChart data={cpuChartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="time" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    {metrics.pods.map((pod) => (
-                      <Line
-                        key={pod.name}
-                        type="monotone"
-                        dataKey={pod.name}
-                        stroke={`#${Math.floor(Math.random() * 16777215).toString(16)}`}
-                        name={pod.name}
-                      />
-                    ))}
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            )}
+            {cpuChartData.length > 0 &&
+              metrics &&
+              metrics.pods &&
+              metrics.pods.length > 0 && (
+                <div style={styles.chartContainer}>
+                  <h3 style={styles.metricTitle}>CPU Usage Over Time</h3>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart data={cpuChartData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="time" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      {metrics.pods.map((pod, idx) => {
+                        // Use consistent colors for each pod
+                        const colors = [
+                          "#8884d8",
+                          "#82ca9d",
+                          "#ffc658",
+                          "#ff7300",
+                          "#00ff00",
+                        ];
+                        return (
+                          <Line
+                            key={pod.name}
+                            type="monotone"
+                            dataKey={pod.name}
+                            stroke={colors[idx % colors.length]}
+                            name={pod.name}
+                            dot={{ r: 3 }}
+                          />
+                        );
+                      })}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
 
-            {memoryChartData.length > 0 && (
-              <div style={styles.chartContainer}>
-                <h3 style={styles.metricTitle}>Memory Usage Over Time</h3>
-                <ResponsiveContainer width="100%" height={200}>
-                  <LineChart data={memoryChartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="time" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    {metrics.pods.map((pod) => (
-                      <Line
-                        key={pod.name}
-                        type="monotone"
-                        dataKey={pod.name}
-                        stroke={`#${Math.floor(Math.random() * 16777215).toString(16)}`}
-                        name={pod.name}
-                      />
-                    ))}
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            )}
+            {memoryChartData.length > 0 &&
+              metrics &&
+              metrics.pods &&
+              metrics.pods.length > 0 && (
+                <div style={styles.chartContainer}>
+                  <h3 style={styles.metricTitle}>Memory Usage Over Time</h3>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart data={memoryChartData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="time" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      {metrics.pods.map((pod, idx) => {
+                        // Use consistent colors for each pod (same as CPU chart)
+                        const colors = [
+                          "#8884d8",
+                          "#82ca9d",
+                          "#ffc658",
+                          "#ff7300",
+                          "#00ff00",
+                        ];
+                        return (
+                          <Line
+                            key={pod.name}
+                            type="monotone"
+                            dataKey={pod.name}
+                            stroke={colors[idx % colors.length]}
+                            name={pod.name}
+                            dot={{ r: 3 }}
+                          />
+                        );
+                      })}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
 
             <h3 style={styles.metricTitle}>Current Pod Metrics</h3>
             <div style={styles.tableContainer}>

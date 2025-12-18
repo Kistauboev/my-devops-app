@@ -5,5 +5,34 @@ metadata:
   name: {{ .Values.namespace }}
   labels:
     app.kubernetes.io/managed-by: devplatform
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: devplatform-quota
+  namespace: {{ .Values.namespace }}
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 4Gi
+    limits.cpu: "4"
+    limits.memory: 8Gi
+    pods: "10"
+    persistentvolumeclaims: "2"
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: devplatform-limits
+  namespace: {{ .Values.namespace }}
+spec:
+  limits:
+    - default:
+        cpu: "500m"
+        memory: "512Mi"
+      defaultRequest:
+        cpu: "200m"
+        memory: "256Mi"
+      type: Container
 {{- end }}
 
