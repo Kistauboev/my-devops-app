@@ -6,7 +6,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
   PREVIEW_NS: pr-${{ github.event.pull_request.number }}
   RELEASE_NAME: pr-${{ github.event.pull_request.number }}
   HOST_SUFFIX: devplatform.local
@@ -17,6 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
+      - name: Set lowercase image name
+        run: echo "IMAGE_NAME=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
       - name: Install Helm
         uses: azure/setup-helm@v4
