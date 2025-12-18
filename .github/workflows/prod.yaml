@@ -20,17 +20,30 @@ jobs:
       - uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.REGISTRY_USERNAME }}
-          password: ${{ secrets.REGISTRY_PASSWORD }}
+          username: ${{ secrets.REGISTRY_USERNAME || github.actor }}
+          password: ${{ secrets.REGISTRY_PASSWORD || secrets.GITHUB_TOKEN }}
 
-      - name: Build and push image
+      - name: Build and push backend image
         uses: docker/build-push-action@v6
         with:
-          context: .
+          context: ./backend
+          file: ./backend/Dockerfile
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:prod
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:prod
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:prod
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -47,6 +60,7 @@ jobs:
         uses: azure/setup-helm@v4
 
       - name: Await manual approval
+        if: secrets.PROD_APPROVERS != ''
         uses: trstringer/manual-approval@v1
         with:
           secret: ${{ secrets.GITHUB_TOKEN }}
@@ -55,17 +69,19 @@ jobs:
           issue-title: "Approve production deploy for ${{ github.sha }}"
 
       - name: Set kube context
+        if: secrets.KUBE_CONFIG_PROD != ''
         uses: azure/k8s-set-context@v4
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.KUBE_CONFIG_PROD }}
 
       - name: Deploy via Helm (rolling update)
+        if: secrets.KUBE_CONFIG_PROD != ''
         run: |
           helm upgrade --install $RELEASE_NAME infra/helm/devplatform \
             --namespace $NAMESPACE --create-namespace \
             --set namespace=$NAMESPACE \
-            --set image.repository=${REGISTRY}/${IMAGE_NAME} \
+            --set image.repository=${REGISTRY}/${IMAGE_NAME}-backend \
             --set image.tag=${{ github.sha }} \
             --set ingress.host=$HOST \
             --set replicaCount=3
