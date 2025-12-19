@@ -55,11 +55,13 @@ jobs:
       - name: Check KUBE_CONFIG secret
         id: check-kube-config
         run: |
-          if [ -n "${{ secrets.KUBE_CONFIG }}" ]; then
+          if [ -n "${KUBE_CONFIG:-}" ]; then
             echo "exists=true" >> $GITHUB_OUTPUT
           else
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
 
       - name: Set kube context
         if: steps.check-kube-config.outputs.exists == 'true'
@@ -85,11 +87,13 @@ jobs:
       - name: Check KUBE_CONFIG secret
         id: check-kube-config
         run: |
-          if [ -n "${{ secrets.KUBE_CONFIG }}" ]; then
+          if [ -n "${KUBE_CONFIG:-}" ]; then
             echo "exists=true" >> $GITHUB_OUTPUT
           else
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
 
       - name: Set kube context
         if: steps.check-kube-config.outputs.exists == 'true'
