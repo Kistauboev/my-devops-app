@@ -58,6 +58,7 @@ jobs:
           push: false
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:${{ github.sha }}
+          platforms: linux/amd64
 
       - name: Build frontend image (verify Dockerfile)
         if: github.event_name != 'pull_request'
@@ -68,3 +69,4 @@ jobs:
           push: false
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:${{ github.sha }}
+          platforms: linux/amd64
