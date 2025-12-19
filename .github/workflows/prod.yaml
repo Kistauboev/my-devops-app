@@ -26,6 +26,9 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build and push backend image
         uses: docker/build-push-action@v6
         with:
@@ -62,11 +65,13 @@ jobs:
       - name: Check KUBE_CONFIG_PROD secret
         id: check-kube-config
         run: |
-          if [ -n "${{ secrets.KUBE_CONFIG_PROD }}" ]; then
+          if [ -n "${KUBE_CONFIG_PROD:-}" ]; then
             echo "exists=true" >> $GITHUB_OUTPUT
           else
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
+        env:
+          KUBE_CONFIG_PROD: ${{ secrets.KUBE_CONFIG_PROD }}
 
       - name: Install Helm
         if: steps.check-kube-config.outputs.exists == 'true'
