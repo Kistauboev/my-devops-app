@@ -57,7 +57,7 @@ jobs:
           file: ./backend/Dockerfile
           push: false
           tags: |
-            ${{ env.REGISTRY }}/${{ steps.image-name.outputs.name }}-backend:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:${{ github.sha }}
 
       - name: Build frontend image (verify Dockerfile)
         if: github.event_name != 'pull_request'
@@ -67,4 +67,4 @@ jobs:
           file: ./frontend/Dockerfile
           push: false
           tags: |
-            ${{ env.REGISTRY }}/${{ steps.image-name.outputs.name }}-frontend:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:${{ github.sha }}
