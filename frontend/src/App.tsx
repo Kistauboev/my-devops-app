@@ -72,7 +72,7 @@ export default function App() {
   const [metrics, setMetrics] = useState<MetricsData | null>(null);
   const [metricsHistory, setMetricsHistory] = useState<Array<MetricsData>>([]);
   const [logsNamespace, setLogsNamespace] = useState<string>("default");
-  const [metricsNamespace, setMetricsNamespace] = useState<string>("default");
+  const [metricsNamespace] = useState<string>("default"); // Always "default"
   const [loadingLogs, setLoadingLogs] = useState<boolean>(false);
   const [loadingMetrics, setLoadingMetrics] = useState<boolean>(false);
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -184,7 +184,38 @@ export default function App() {
       const res = await axios.get(`${API_BASE}/metrics`, {
         params: { namespace: metricsNamespace },
       });
+      
+      // Check if response contains an error
+      if (res.data && res.data.error) {
+        console.error("Backend returned error:", res.data.error);
+        // Don't update metrics, just log the error
+        // The UI will show the last known metrics or nothing
+        return;
+      }
+      
+      // Validate that we have the expected structure
+      if (!res.data || typeof res.data !== 'object') {
+        console.error("Invalid metrics response:", res.data);
+        return;
+      }
+      
       const metricsData = res.data as MetricsData;
+      
+      // Ensure pods array exists
+      if (!metricsData.pods) {
+        metricsData.pods = [];
+      }
+      
+      // Ensure http_metrics exists
+      if (!metricsData.http_metrics) {
+        metricsData.http_metrics = {
+          requests_per_minute: 0,
+          total_requests: 0,
+          error_requests: 0,
+          error_rate: 0,
+        };
+      }
+      
       setMetrics(metricsData);
       // Keep last 20 data points for history
       setMetricsHistory((prev) => {
@@ -201,6 +232,7 @@ export default function App() {
       } else {
         console.error("Error setting up request:", err.message);
       }
+      // Don't crash - just don't update metrics
     } finally {
       setLoadingMetrics(false);
     }
@@ -211,7 +243,7 @@ export default function App() {
     fetchMetrics(); // Initial fetch
     const interval = setInterval(fetchMetrics, 60000); // Every 60 seconds
     return () => clearInterval(interval);
-  }, [metricsNamespace]);
+  }, []); // metricsNamespace is always "default", no need to depend on it
 
   // Cleanup event source on unmount
   useEffect(() => {
@@ -222,30 +254,46 @@ export default function App() {
     };
   }, []);
 
-  // Prepare chart data
+  // Prepare chart data with error handling
   const cpuChartData = metricsHistory
-    .filter((m) => m.pods && m.pods.length > 0)
-    .map((m, idx) => ({
-      time: idx,
-      ...Object.fromEntries(
-        m.pods.map((pod) => [pod.name, pod.cpu_value || 0])
-      ),
-    }));
+    .filter((m) => m && m.pods && Array.isArray(m.pods) && m.pods.length > 0)
+    .map((m, idx) => {
+      try {
+        return {
+          time: idx,
+          ...Object.fromEntries(
+            m.pods.map((pod) => [pod.name, pod.cpu_value || 0])
+          ),
+        };
+      } catch (err) {
+        console.error("Error processing CPU chart data:", err);
+        return { time: idx };
+      }
+    });
 
   const memoryChartData = metricsHistory
-    .filter((m) => m.pods && m.pods.length > 0)
+    .filter((m) => m && m.pods && Array.isArray(m.pods) && m.pods.length > 0)
+    .map((m, idx) => {
+      try {
+        return {
+          time: idx,
+          ...Object.fromEntries(
+            m.pods.map((pod) => [pod.name, pod.memory_value || 0])
+          ),
+        };
+      } catch (err) {
+        console.error("Error processing memory chart data:", err);
+        return { time: idx };
+      }
+    });
+
+  const httpRateData = metricsHistory
+    .filter((m) => m && m.http_metrics)
     .map((m, idx) => ({
       time: idx,
-      ...Object.fromEntries(
-        m.pods.map((pod) => [pod.name, pod.memory_value || 0])
-      ),
+      requestsPerMinute: m.http_metrics?.requests_per_minute || 0,
+      errorRate: (m.http_metrics?.error_rate || 0) * 100,
     }));
-
-  const httpRateData = metricsHistory.map((m, idx) => ({
-    time: idx,
-    requestsPerMinute: m.http_metrics?.requests_per_minute || 0,
-    errorRate: (m.http_metrics?.error_rate || 0) * 100,
-  }));
 
   return (
     <main style={styles.page}>
@@ -372,9 +420,9 @@ export default function App() {
           Namespace
           <input
             style={styles.input}
-            value={metricsNamespace}
-            onChange={(e) => setMetricsNamespace(e.target.value)}
-            placeholder="default"
+            value="default"
+            readOnly
+            disabled
           />
         </label>
         <button
@@ -439,6 +487,7 @@ export default function App() {
             {cpuChartData.length > 0 &&
               metrics &&
               metrics.pods &&
+              Array.isArray(metrics.pods) &&
               metrics.pods.length > 0 && (
                 <div style={styles.chartContainer}>
                   <h3 style={styles.metricTitle}>CPU Usage Over Time</h3>
@@ -477,6 +526,7 @@ export default function App() {
             {memoryChartData.length > 0 &&
               metrics &&
               metrics.pods &&
+              Array.isArray(metrics.pods) &&
               metrics.pods.length > 0 && (
                 <div style={styles.chartContainer}>
                   <h3 style={styles.metricTitle}>Memory Usage Over Time</h3>
@@ -523,11 +573,11 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {metrics.pods.map((pod) => (
+                  {metrics.pods && Array.isArray(metrics.pods) && metrics.pods.map((pod) => (
                     <tr key={pod.name}>
                       <td>{pod.name}</td>
-                      <td>{pod.cpu}</td>
-                      <td>{pod.memory}</td>
+                      <td>{pod.cpu || 'N/A'}</td>
+                      <td>{pod.memory || 'N/A'}</td>
                     </tr>
                   ))}
                 </tbody>

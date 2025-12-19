@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set lowercase image name
         run: echo "IMAGE_NAME=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
@@ -52,36 +52,53 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Check KUBE_CONFIG secret
+        id: check-kube-config
+        run: |
+          if [ -n "${{ secrets.KUBE_CONFIG }}" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Set kube context
-        if: secrets.KUBE_CONFIG != ''
+        if: steps.check-kube-config.outputs.exists == 'true'
         uses: azure/k8s-set-context@v4
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.KUBE_CONFIG }}
 
       - name: Deploy preview via Helm
-        if: secrets.KUBE_CONFIG != ''
+        if: steps.check-kube-config.outputs.exists == 'true'
         run: |
-          helm upgrade --install $RELEASE_NAME infra/helm/devplatform \
-            --namespace $PREVIEW_NS --create-namespace \
-            --set namespace=$PREVIEW_NS \
-            --set image.repository=${REGISTRY}/${IMAGE_NAME}-backend \
+          helm upgrade --install ${{ env.RELEASE_NAME }} infra/helm/devplatform \
+            --namespace ${{ env.PREVIEW_NS }} --create-namespace \
+            --set namespace=${{ env.PREVIEW_NS }} \
+            --set image.repository=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend \
             --set image.tag=pr-${{ github.event.pull_request.number }}-${{ github.sha }} \
-            --set ingress.host=pr-${{ github.event.pull_request.number }}.${HOST_SUFFIX}
+            --set ingress.host=pr-${{ github.event.pull_request.number }}.${{ env.HOST_SUFFIX }}
 
   teardown-preview:
     if: github.event.action == 'closed'
     runs-on: ubuntu-latest
     steps:
+      - name: Check KUBE_CONFIG secret
+        id: check-kube-config
+        run: |
+          if [ -n "${{ secrets.KUBE_CONFIG }}" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Set kube context
-        if: secrets.KUBE_CONFIG != ''
+        if: steps.check-kube-config.outputs.exists == 'true'
         uses: azure/k8s-set-context@v4
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.KUBE_CONFIG }}
 
       - name: Delete preview namespace
-        if: secrets.KUBE_CONFIG != ''
+        if: steps.check-kube-config.outputs.exists == 'true'
         run: |
           kubectl delete namespace ${{ env.PREVIEW_NS }} --ignore-not-found=true
-

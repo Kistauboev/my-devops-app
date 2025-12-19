@@ -11,10 +11,6 @@ class ClusterError(Exception):
 
 @dataclass
 class ClusterManager:
-    """
-    Manages Kubernetes cluster operations for preview environments.
-    Uses kubectl/helm commands or Kubernetes API client.
-    """
 
     kubeconfig: Optional[str] = None
     namespace_prefix: str = "pr-"
@@ -25,7 +21,6 @@ class ClusterManager:
         return cls(kubeconfig=kubeconfig)
 
     def _run_kubectl(self, cmd: List[str]) -> Tuple[bool, str]:
-        """Run kubectl command and return success status and output."""
         env = os.environ.copy()
         if self.kubeconfig:
             # Write kubeconfig to temp file or use KUBECONFIG env
@@ -41,9 +36,9 @@ class ClusterManager:
             )
             return result.returncode == 0, result.stdout + result.stderr
         except subprocess.TimeoutExpired:
-            return False, "Command timed out"
+            return False, "kubectl command timed out"
         except FileNotFoundError:
-            return False, "kubectl not found in PATH"
+            return False, "kubectl not found"
         except Exception as e:
             return False, str(e)
 

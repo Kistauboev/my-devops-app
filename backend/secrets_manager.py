@@ -10,10 +10,7 @@ class SecretsManagerError(Exception):
 
 @dataclass
 class SecretsManager:
-    """
-    Secrets manager integration supporting Vault and GitHub Secrets API.
-    Falls back to environment variables if Vault is not configured.
-    """
+
 
     vault_addr: Optional[str]
     vault_token: Optional[str]
